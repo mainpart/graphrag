@@ -19,6 +19,44 @@ from graphrag.tokenizer.get_tokenizer import get_tokenizer
 EXTRACT_GRAPH_FILENAME = "extract_graph.txt"
 
 
+def _select_template(entity_types: str | None, json_mode: bool) -> str:
+    """Select the extract graph template for the mode the prompt is built for."""
+    if not entity_types:
+        return UNTYPED_GRAPH_EXTRACTION_PROMPT
+    return GRAPH_EXTRACTION_JSON_PROMPT if json_mode else GRAPH_EXTRACTION_PROMPT
+
+
+def count_base_prompt_tokens(
+    entity_types: str | None,
+    language: str,
+    tokenizer: Tokenizer,
+    json_mode: bool = False,
+) -> int:
+    """Count the tokens of the extract graph prompt before any example is added.
+
+    The template is formatted with an empty example block, so placeholders are not
+    counted and every occurrence of the entity types is.
+
+    Parameters
+    ----------
+    - entity_types (str | None): The entity types to extract, already joined
+    - language (str): The language of the inputs and outputs
+    - tokenizer (Tokenizer): The tokenizer to use for encoding text
+    - json_mode (bool): Whether to use JSON mode for the prompt. Default is False
+
+    Returns
+    -------
+    - int: The number of tokens taken by the prompt without examples
+    """
+    template = _select_template(entity_types, json_mode)
+    base_prompt = (
+        template.format(entity_types=entity_types, examples="", language=language)
+        if entity_types
+        else template.format(examples="", language=language)
+    )
+    return tokenizer.num_tokens(base_prompt)
+
+
 def create_extract_graph_prompt(
     entity_types: str | list[str] | None,
     docs: list[str],
@@ -49,22 +87,15 @@ def create_extract_graph_prompt(
     -------
     - str: The entity extraction prompt
     """
-    prompt = (
-        (GRAPH_EXTRACTION_JSON_PROMPT if json_mode else GRAPH_EXTRACTION_PROMPT)
-        if entity_types
-        else UNTYPED_GRAPH_EXTRACTION_PROMPT
-    )
     if isinstance(entity_types, list):
         entity_types = ", ".join(map(str, entity_types))
 
+    prompt = _select_template(entity_types, json_mode)
+
     tokenizer = tokenizer or get_tokenizer()
 
-    tokens_left = (
-        max_token_count
-        - tokenizer.num_tokens(prompt)
-        - tokenizer.num_tokens(entity_types)
-        if entity_types
-        else 0
+    tokens_left = max_token_count - count_base_prompt_tokens(
+        entity_types, language, tokenizer, json_mode
     )
 
     examples_prompt = ""
