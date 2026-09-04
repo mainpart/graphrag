@@ -3,6 +3,7 @@
 
 """Entity Extraction prompt generator module."""
 
+import logging
 from pathlib import Path
 
 from graphrag_llm.tokenizer import Tokenizer
@@ -15,6 +16,8 @@ from graphrag.prompt_tune.template.extract_graph import (
     UNTYPED_GRAPH_EXTRACTION_PROMPT,
 )
 from graphrag.tokenizer.get_tokenizer import get_tokenizer
+
+logger = logging.getLogger(__name__)
 
 EXTRACT_GRAPH_FILENAME = "extract_graph.txt"
 
@@ -57,6 +60,87 @@ def count_base_prompt_tokens(
     return tokenizer.num_tokens(base_prompt)
 
 
+def format_extract_graph_example(
+    n: int,
+    input_text: str,
+    output: str,
+    entity_types: str | None,
+) -> str:
+    """Format a single example block of the extract graph prompt.
+
+    Parameters
+    ----------
+    - n (int): The 1-based number of the example
+    - input_text (str): The document the example was generated from
+    - output (str): The entities and relationships extracted from it
+    - entity_types (str | None): The entity types to extract, already joined
+
+    Returns
+    -------
+    - str: The formatted example block
+    """
+    if entity_types:
+        return EXAMPLE_EXTRACTION_TEMPLATE.format(
+            n=n, input_text=input_text, entity_types=entity_types, output=output
+        )
+    return UNTYPED_EXAMPLE_EXTRACTION_TEMPLATE.format(
+        n=n, input_text=input_text, output=output
+    )
+
+
+def select_examples_within_budget(
+    docs: list[str],
+    examples: list[str],
+    entity_types: str | None,
+    base_token_count: int,
+    max_token_count: int,
+    min_examples_required: int,
+    tokenizer: Tokenizer,
+) -> tuple[str, int, int]:
+    """Format as many examples as the token budget admits.
+
+    The first `min_examples_required` examples are added whether they fit or not, so the
+    prompt is never left without examples.
+
+    Parameters
+    ----------
+    - docs (list[str]): The documents the examples were generated from
+    - examples (list[str]): The generated examples, aligned with `docs`
+    - entity_types (str | None): The entity types to extract, already joined
+    - base_token_count (int): The size of the prompt before any example is added
+    - max_token_count (int): The maximum number of tokens to use for the prompt
+    - min_examples_required (int): The number of examples added unconditionally
+    - tokenizer (Tokenizer): The tokenizer to use for encoding text
+
+    Returns
+    -------
+    - tuple[str, int, int]: the formatted example block, how many examples went into it,
+      and the `max_token_count` at which every supplied example would have fitted
+    """
+    formatted = [
+        format_extract_graph_example(
+            n=i + 1, input_text=docs[i], output=output, entity_types=entity_types
+        )
+        for i, output in enumerate(examples)
+    ]
+    example_tokens = [tokenizer.num_tokens(block) for block in formatted]
+
+    tokens_left = max_token_count - base_token_count
+    examples_prompt = ""
+    examples_used = 0
+
+    for i, block in enumerate(formatted):
+        # the first min_examples_required go in whether they fit or not
+        if i >= min_examples_required and example_tokens[i] > tokens_left:
+            break
+
+        examples_prompt += block
+        examples_used += 1
+        tokens_left -= example_tokens[i]
+
+    return examples_prompt, examples_used, base_token_count + sum(example_tokens)
+
+
 def create_extract_graph_prompt(
     entity_types: str | list[str] | None,
     docs: list[str],
@@ -94,33 +178,21 @@ def create_extract_graph_prompt(
 
     tokenizer = tokenizer or get_tokenizer()
 
-    tokens_left = max_token_count - count_base_prompt_tokens(
+    base_token_count = count_base_prompt_tokens(
         entity_types, language, tokenizer, json_mode
     )
 
-    examples_prompt = ""
-
-    # Iterate over examples, while we have tokens left or examples left
-    for i, output in enumerate(examples):
-        input = docs[i]
-        example_formatted = (
-            EXAMPLE_EXTRACTION_TEMPLATE.format(
-                n=i + 1, input_text=input, entity_types=entity_types, output=output
-            )
-            if entity_types
-            else UNTYPED_EXAMPLE_EXTRACTION_TEMPLATE.format(
-                n=i + 1, input_text=input, output=output
-            )
+    examples_prompt, examples_used, required_token_count = (
+        select_examples_within_budget(
+            docs=docs,
+            examples=examples,
+            entity_types=entity_types,
+            base_token_count=base_token_count,
+            max_token_count=max_token_count,
+            min_examples_required=min_examples_required,
+            tokenizer=tokenizer,
         )
-
-        example_tokens = tokenizer.num_tokens(example_formatted)
-
-        # Ensure at least three examples are included
-        if i >= min_examples_required and example_tokens > tokens_left:
-            break
-
-        examples_prompt += example_formatted
-        tokens_left -= example_tokens
+    )
 
     prompt = (
         prompt.format(
@@ -129,6 +201,25 @@ def create_extract_graph_prompt(
         if entity_types
         else prompt.format(examples=examples_prompt, language=language)
     )
+
+    prompt_token_count = tokenizer.num_tokens(prompt)
+    logger.info(
+        "Extract graph prompt: %d of %d examples included, %d tokens.",
+        examples_used,
+        len(examples),
+        prompt_token_count,
+    )
+    if prompt_token_count > max_token_count:
+        logger.warning(
+            "Extract graph prompt: the %d required examples do not fit in a budget of %d"
+            " tokens, the prompt is %d. Use --max-tokens %d to fit all %d generated"
+            " examples.",
+            examples_used,
+            max_token_count,
+            prompt_token_count,
+            required_token_count,
+            len(examples),
+        )
 
     if output_path:
         output_path.mkdir(parents=True, exist_ok=True)

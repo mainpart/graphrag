@@ -1,0 +1,4 @@
+{
+  "type": "patch",
+  "description": "Generate only as many prompt-tune examples as the extract graph prompt budget admits."
+}

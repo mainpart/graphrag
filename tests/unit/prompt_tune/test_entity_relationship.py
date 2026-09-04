@@ -62,13 +62,15 @@ class RecordingCompletion(LLMCompletion):
 
 
 async def _generate(model: RecordingCompletion, docs: list[str]) -> list[str]:
-    return await generate_entity_relationship_examples(
+    _, examples = await generate_entity_relationship_examples(
         model,
         persona=PERSONA,
         entity_types=["organization", "person"],
         docs=docs,
         language="English",
+        max_token_count=1_000_000,
     )
+    return examples
 
 
 async def test_each_call_gets_only_its_own_document():
