@@ -243,8 +243,8 @@ class CompletionMessagesBuilder:
         return self
 
     def build(self) -> "LLMCompletionMessagesParam":
-        """Get messages."""
-        return self._messages
+        """Get a copy of the messages accumulated so far."""
+        return list(self._messages)
 
 
 class CompletionContentPartBuilder:
