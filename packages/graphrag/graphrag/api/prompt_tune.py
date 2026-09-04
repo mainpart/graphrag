@@ -124,6 +124,8 @@ async def generate_indexing_prompts(
     extract_graph_llm_settings = config.get_completion_model_config(
         config.extract_graph.completion_model_id
     )
+    # the same tokenizer measures the budget in both places, so they cannot disagree
+    extract_graph_tokenizer = get_tokenizer(model_config=extract_graph_llm_settings)
     if discover_entity_types:
         logger.info("Generating entity types...")
         entity_types = await generate_entity_types(
@@ -135,23 +137,26 @@ async def generate_indexing_prompts(
         )
 
     logger.info("Generating entity relationship examples...")
-    examples = await generate_entity_relationship_examples(
+    example_docs, examples = await generate_entity_relationship_examples(
         llm,
         persona=persona,
         entity_types=entity_types,
         docs=doc_list,
         language=language,
         json_mode=False,  # config.llm.model_supports_json should be used, but these prompts are used in non-json mode by the index engine
+        tokenizer=extract_graph_tokenizer,
+        max_token_count=max_tokens,
+        min_examples_required=min_examples_required,
     )
 
     logger.info("Generating entity extraction prompt...")
     extract_graph_prompt = create_extract_graph_prompt(
         entity_types=entity_types,
-        docs=doc_list,
+        docs=example_docs,
         examples=examples,
         language=language,
         json_mode=False,  # config.llm.model_supports_json should be used, but these prompts are used in non-json mode by the index engine
-        tokenizer=get_tokenizer(model_config=extract_graph_llm_settings),
+        tokenizer=extract_graph_tokenizer,
         max_token_count=max_tokens,
         min_examples_required=min_examples_required,
     )

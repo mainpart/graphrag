@@ -3,6 +3,7 @@
 
 """Unit tests for create_extract_graph_prompt."""
 
+import logging
 import re
 from typing import Any
 
@@ -130,3 +131,10 @@ def test_each_example_carries_its_own_document(entity_types):
 
     for number, block in blocks.items():
         assert DOCS[number - 1] in block
+
+
+def test_warns_with_the_required_budget_when_the_minimum_overruns(caplog):
+    with caplog.at_level(logging.WARNING):
+        _build(ENTITY_TYPES, 0, min_examples_required=2)
+
+    assert f"--max-tokens {_budget_for(len(EXAMPLES), ENTITY_TYPES)}" in caplog.text
