@@ -35,7 +35,8 @@ class MarkItDownFileReader(InputReader):
         bytes = await self._storage.get(path, encoding=self._encoding, as_bytes=True)
         md = MarkItDown()
         result = md.convert_stream(
-            BytesIO(bytes), stream_info=StreamInfo(extension=Path(path).suffix)
+            BytesIO(bytes),
+            stream_info=StreamInfo(extension=Path(path).suffix, charset=self._encoding),
         )
         text = result.markdown
 
