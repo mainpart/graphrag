@@ -1,0 +1,4 @@
+{
+  "type": "patch",
+  "description": "Compute the extract graph prompt token budget from the formatted template, and apply it in untyped mode too."
+}
