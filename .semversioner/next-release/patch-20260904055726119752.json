@@ -1,0 +1,4 @@
+{
+  "type": "patch",
+  "description": "Pass the configured input encoding to markitdown instead of letting it guess the charset."
+}
