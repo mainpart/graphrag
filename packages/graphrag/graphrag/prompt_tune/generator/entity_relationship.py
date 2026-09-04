@@ -38,8 +38,6 @@ async def generate_entity_relationship_examples(
     """
     docs_list = [docs] if isinstance(docs, str) else docs
 
-    msg_builder = CompletionMessagesBuilder().add_system_message(persona)
-
     if entity_types:
         entity_types_str = (
             entity_types
@@ -67,7 +65,10 @@ async def generate_entity_relationship_examples(
 
     tasks = [
         model.completion_async(
-            messages=msg_builder.add_user_message(message).build(),
+            messages=CompletionMessagesBuilder()
+            .add_system_message(persona)
+            .add_user_message(message)
+            .build(),
             response_format_json_object=json_mode,
         )
         for message in messages
