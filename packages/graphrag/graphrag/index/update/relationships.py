@@ -13,7 +13,7 @@ from graphrag.data_model.schemas import RELATIONSHIPS_FINAL_COLUMNS
 
 def _update_and_merge_relationships(
     old_relationships: pd.DataFrame, delta_relationships: pd.DataFrame
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, dict]:
     """Update and merge relationships.
 
     Parameters
@@ -27,7 +27,18 @@ def _update_and_merge_relationships(
     -------
     pd.DataFrame
         The updated relationships.
+    dict
+        The id mapping for existing relationships. In the form of {delta.id: old.id}.
     """
+    # If a (source, target) pair exists in both, make a dictionary for {delta.id: old.id}
+    # so downstream tables can be repointed at the surviving row.
+    matched = delta_relationships[["id", "source", "target"]].merge(
+        old_relationships[["id", "source", "target"]],
+        on=["source", "target"],
+        suffixes=("_delta", "_old"),
+    )
+    id_mapping = dict(zip(matched["id_delta"], matched["id_old"], strict=True))
+
     # Increment the human readable id in b by the max of a
     # Ensure both columns are integers
     delta_relationships["human_readable_id"] = delta_relationships[
@@ -80,7 +91,10 @@ def _update_and_merge_relationships(
         final_relationships["source_degree"] + final_relationships["target_degree"]
     )
 
-    return final_relationships.loc[
-        :,
-        RELATIONSHIPS_FINAL_COLUMNS,
-    ]
+    return (
+        final_relationships.loc[
+            :,
+            RELATIONSHIPS_FINAL_COLUMNS,
+        ],
+        id_mapping,
+    )

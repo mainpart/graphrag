@@ -1,0 +1,4 @@
+{
+  "type": "patch",
+  "description": "Remap delta entity and relationship ids in the community merge during incremental update."
+}

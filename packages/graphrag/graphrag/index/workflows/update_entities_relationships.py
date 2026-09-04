@@ -41,6 +41,7 @@ async def run_workflow(
         merged_entities_df,
         merged_relationships_df,
         entity_id_mapping,
+        relationship_id_mapping,
     ) = await _update_entities_and_relationships(
         previous_table_provider,
         delta_table_provider,
@@ -53,6 +54,9 @@ async def run_workflow(
     context.state["incremental_update_merged_entities"] = merged_entities_df
     context.state["incremental_update_merged_relationships"] = merged_relationships_df
     context.state["incremental_update_entity_id_mapping"] = entity_id_mapping
+    context.state["incremental_update_relationship_id_mapping"] = (
+        relationship_id_mapping
+    )
 
     logger.info("Workflow completed: update_entities_relationships")
     return WorkflowFunctionOutput(result=None)
@@ -65,7 +69,7 @@ async def _update_entities_and_relationships(
     config: GraphRagConfig,
     cache: Cache,
     callbacks: WorkflowCallbacks,
-) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+) -> tuple[pd.DataFrame, pd.DataFrame, dict, dict]:
     """Update Final Entities  and Relationships output."""
     old_entities = await DataReader(previous_table_provider).entities()
     delta_entities = await DataReader(delta_table_provider).entities()
@@ -77,7 +81,7 @@ async def _update_entities_and_relationships(
     # Update Relationships
     old_relationships = await DataReader(previous_table_provider).relationships()
     delta_relationships = await DataReader(delta_table_provider).relationships()
-    merged_relationships_df = _update_and_merge_relationships(
+    merged_relationships_df, relationship_id_mapping = _update_and_merge_relationships(
         old_relationships,
         delta_relationships,
     )
@@ -116,4 +120,9 @@ async def _update_entities_and_relationships(
         "relationships", merged_relationships_df
     )
 
-    return merged_entities_df, merged_relationships_df, entity_id_mapping
+    return (
+        merged_entities_df,
+        merged_relationships_df,
+        entity_id_mapping,
+        relationship_id_mapping,
+    )

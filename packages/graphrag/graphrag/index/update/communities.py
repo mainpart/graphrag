@@ -3,6 +3,8 @@
 
 """Dataframe operations and utils for Incremental Indexing."""
 
+from typing import Any
+
 import pandas as pd
 
 from graphrag.data_model.schemas import (
@@ -11,9 +13,18 @@ from graphrag.data_model.schemas import (
 )
 
 
+def _remap_ids(ids: Any, id_mapping: dict) -> Any:
+    """Repoint a list of ids at their surviving counterparts, leaving unknown ids as-is."""
+    if ids is None:
+        return ids
+    return [id_mapping.get(i, i) for i in ids]
+
+
 def _update_and_merge_communities(
     old_communities: pd.DataFrame,
     delta_communities: pd.DataFrame,
+    entity_id_mapping: dict | None = None,
+    relationship_id_mapping: dict | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     """Update and merge communities.
 
@@ -23,12 +34,30 @@ def _update_and_merge_communities(
         The old communities.
     delta_communities : pd.DataFrame
         The delta communities.
+    entity_id_mapping : dict | None
+        Mapping of delta entity ids to the ids that survived the entity merge.
+    relationship_id_mapping : dict | None
+        Mapping of delta relationship ids to the ids that survived the relationship merge.
 
     Returns
     -------
     pd.DataFrame
         The updated communities.
+    dict
+        The community id mapping.
     """
+    # The delta pipeline mints its own ids, and the entity/relationship merges keep the
+    # pre-existing row on a collision. Repoint the delta membership lists at the surviving
+    # ids, otherwise these communities reference ids absent from every other table.
+    if entity_id_mapping:
+        delta_communities["entity_ids"] = delta_communities["entity_ids"].apply(
+            lambda x: _remap_ids(x, entity_id_mapping)
+        )
+    if relationship_id_mapping:
+        delta_communities["relationship_ids"] = delta_communities[
+            "relationship_ids"
+        ].apply(lambda x: _remap_ids(x, relationship_id_mapping))
+
     # Check if size and period columns exist in the old_communities. If not, add them
     if "size" not in old_communities.columns:
         old_communities["size"] = None

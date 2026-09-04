@@ -73,7 +73,7 @@ class TestUpdateAndMergeRelationships:
         delta = pd.DataFrame([
             _finalized_relationship_row("C", "D", relationship_id="r2"),
         ])
-        merged = _update_and_merge_relationships(old, delta)
+        merged, _ = _update_and_merge_relationships(old, delta)
 
         pairs = set(zip(merged["source"], merged["target"], strict=True))
         assert ("A", "B") in pairs
@@ -88,7 +88,7 @@ class TestUpdateAndMergeRelationships:
         delta = pd.DataFrame([
             _finalized_relationship_row("A", "B", relationship_id="r2", weight=4.0),
         ])
-        merged = _update_and_merge_relationships(old, delta)
+        merged, _ = _update_and_merge_relationships(old, delta)
 
         assert len(merged) == 1
         assert merged.iloc[0]["weight"] == pytest.approx(3.0)  # mean of 2.0 and 4.0
@@ -101,7 +101,7 @@ class TestUpdateAndMergeRelationships:
         delta = pd.DataFrame([
             _finalized_relationship_row("C", "D", human_readable_id=0),
         ])
-        merged = _update_and_merge_relationships(old, delta)
+        merged, _ = _update_and_merge_relationships(old, delta)
 
         ids = set(merged["human_readable_id"])
         assert len(ids) == 2
@@ -130,7 +130,7 @@ class TestUpdatePathOrphanFiltering:
         delta_rels = pd.DataFrame([
             _finalized_relationship_row("HALLUCINATED", "B", relationship_id="r2"),
         ])
-        merged_rels = _update_and_merge_relationships(old_rels, delta_rels)
+        merged_rels, _ = _update_and_merge_relationships(old_rels, delta_rels)
         filtered = filter_orphan_relationships(merged_rels, merged_entities)
 
         assert len(filtered) == 1
@@ -149,7 +149,7 @@ class TestUpdatePathOrphanFiltering:
         delta_rels = pd.DataFrame([
             _finalized_relationship_row("A", "HALLUCINATED", relationship_id="r2"),
         ])
-        merged_rels = _update_and_merge_relationships(old_rels, delta_rels)
+        merged_rels, _ = _update_and_merge_relationships(old_rels, delta_rels)
         filtered = filter_orphan_relationships(merged_rels, merged_entities)
 
         assert len(filtered) == 1
@@ -170,7 +170,7 @@ class TestUpdatePathOrphanFiltering:
         delta_rels = pd.DataFrame([
             _finalized_relationship_row("GHOST_1", "GHOST_2", relationship_id="r1"),
         ])
-        merged_rels = _update_and_merge_relationships(old_rels, delta_rels)
+        merged_rels, _ = _update_and_merge_relationships(old_rels, delta_rels)
         filtered = filter_orphan_relationships(merged_rels, merged_entities)
 
         assert len(filtered) == 1
@@ -191,7 +191,7 @@ class TestUpdatePathOrphanFiltering:
         delta_rels = pd.DataFrame([
             _finalized_relationship_row("B", "C", relationship_id="r2"),
         ])
-        merged_rels = _update_and_merge_relationships(old_rels, delta_rels)
+        merged_rels, _ = _update_and_merge_relationships(old_rels, delta_rels)
         filtered = filter_orphan_relationships(merged_rels, merged_entities)
 
         assert len(filtered) == 2
@@ -220,7 +220,7 @@ class TestUpdatePathOrphanFiltering:
                 "B", "A", relationship_id="r3", human_readable_id=0
             ),
         ])
-        merged_rels = _update_and_merge_relationships(old_rels, delta_rels)
+        merged_rels, _ = _update_and_merge_relationships(old_rels, delta_rels)
         filtered = filter_orphan_relationships(merged_rels, merged_entities)
 
         surviving_pairs = set(zip(filtered["source"], filtered["target"], strict=True))
